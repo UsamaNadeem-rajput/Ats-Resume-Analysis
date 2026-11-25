@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-
 const schema = new mongoose.Schema(
     {
         user:{
@@ -16,9 +15,6 @@ const schema = new mongoose.Schema(
             type:String,
             required:true
         },
-        // ── NAYE FIELDS (sab optional): PDF ke header/receiver block ke liye ─────────────
-        // Tumhara model waisa hi hai, sirf yeh 4 cheezein add hui hain. Mongoose unhein save hi nahi karta
-        // jab tak schema mein na hon, isliye inhein model mein likhna zaroori hai
         tone:{
             type:String,
             enum:['professional','friendly','confident'],

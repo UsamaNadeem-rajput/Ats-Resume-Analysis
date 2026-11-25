@@ -1,6 +1,3 @@
-// tests/ai.test.js: `node tests/ai.test.js`
-// Asli AI API nahi chalti. global.fetch ko nakli (mock) bana dete hain, taake bina key aur
-// bina internet ke har rasta (success, fail, retry, fallback) test ho sake.
 
 const { load } = require('./paths');
 const { generateSuggestions } = load('services/aiService');
@@ -15,14 +12,12 @@ const check = (label, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail ? '  →  ' + detail : ''}`);
 };
 
-// ── Tayyari: asli resume/JD pair se input banao ──────────────────────────────
 const lines = resumes.web.text.split('\n').map((l) => l.trim()).filter(Boolean);
 const resumeText = lines.join(' ');
 const keywordData = analyzeKeywords(resumeText, jds.web, lines);
 const { score, breakdown } = calculateScore(keywordData, resumeText, { pageCount: 1 });
 const input = { resumeText, lines, jdText: jds.web, keywordData, score, breakdown };
 
-// Resume ka asli bullet (validate "before" check ke liye)
 const REAL_BULLET = 'Chat App - Developed real time chat with Socket.io and JWT authentication, deployed on AWS EC2.';
 
 const goodJson = {
@@ -34,7 +29,6 @@ const goodJson = {
   rewrittenBullets: [{ before: REAL_BULLET, after: 'Built a real-time chat app (Socket.io, JWT) deployed on AWS EC2.' }],
 };
 
-// ── Nakli fetch: pehle se likhe jawab ek ek karke deta hai, aur calls record karta hai ──
 const calls = [];
 const setFetch = (...responses) => {
   calls.length = 0;
@@ -60,11 +54,10 @@ const timeout = () => Object.assign(new Error('x'), { name: 'TimeoutError' });
 
 const setEnv = (env) => {
   ['GEMINI_API_KEY', 'GROQ_API_KEY', 'AI_PROVIDER', 'GEMINI_MODEL', 'GROQ_MODEL', 'AI_TOTAL_BUDGET_MS', 'AI_MAX_RATE_LIMIT_WAIT_MS'].forEach((k) => delete process.env[k]);
-  process.env.AI_WAIT_SCALE = '0'; // tests mein ruknay ka waqt zero, warna tests dheere chalte
+  process.env.AI_WAIT_SCALE = '0';
   Object.assign(process.env, env);
 };
 
-// Logs ko chup karo (warn bohot aate hain), lekin pakad kar rakho taake secrets check kar sakein
 const logged = [];
 console.warn = (...args) => logged.push(args.join(' '));
 
@@ -153,7 +146,6 @@ const main = async () => {
   r = await generateSuggestions(input);
   check('dono providers 500 → har ek par 3 koshish, phir failed', r.aiStatus === 'failed' && calls.length === 6, 'calls ' + calls.length);
 
-  // Kul waqt ki hadd: pehli call ke baad budget khatam, to retry nahi
   setEnv({ GROQ_API_KEY: 'q', AI_TOTAL_BUDGET_MS: '1' });
   calls.length = 0;
   global.fetch = async (url, options) => {
@@ -164,7 +156,6 @@ const main = async () => {
   r = await generateSuggestions(input);
   check('waqt ki hadd guzri → retry nahi, failed', r.aiStatus === 'failed' && calls.length === 1 && r.error.includes('budget_exceeded'), JSON.stringify(r) + ' calls ' + calls.length);
 
-  // Naya: backoff, Retry-After, truncation
   setEnv({ GROQ_API_KEY: 'q' });
   setFetch(httpError(503), httpError(503), groq(json));
   r = await generateSuggestions(input);

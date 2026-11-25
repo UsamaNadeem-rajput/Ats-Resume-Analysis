@@ -25,7 +25,7 @@ const schema = mongoose.Schema({
     },
     resume: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "resumes", // Populate ke liye ref add kiya
+        ref: "resumes",
         required: true
     },
     jobTitle: {
@@ -74,8 +74,8 @@ const schema = mongoose.Schema({
     },
     aiStatus: {
       type: String,
-      enum: ['not_requested', 'ok', 'failed'], // 'not_requested' shamil kiya
-      default: 'not_requested',               // Ab shuru mein AI run nahi hoga
+      enum: ['not_requested', 'ok', 'failed'],
+      default: 'not_requested',
       required: true,
     },
 },

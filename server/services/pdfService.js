@@ -1,11 +1,6 @@
-// src/services/pdfService.js
 const pdfParse = require('pdf-parse');
 const AppError = require('../utils/AppError');
 
-// Raw text → saaf lines.
-// Pehle: sirf 3+ spaces collapse hote thay aur newlines idhar udhar reh jati thin.
-// Ab: har line ke andar spaces saaf, khali lines hata di, aur LINES alag se bhi wapas aati hain
-// (section headings pehchanne ke liye keywordService ko lines chahiye)
 const toLines = (rawText) =>
   rawText
     .split(/\r?\n/)
@@ -26,7 +21,7 @@ const extractText = async (buffer) => {
   }
 
   const lines = toLines(result.text || '');
-  const text = lines.join(' '); // ek line ka text: keywords/skills/score isi par chalte hain
+  const text = lines.join(' ');
 
   if (text.length < 50) {
     throw new AppError(

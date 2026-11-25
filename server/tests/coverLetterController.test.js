@@ -1,11 +1,3 @@
-// tests/coverLetterController.test.js: `node tests/coverLetterController.test.js`
-//
-// Cover letter ke teeno endpoints (banao, dekho, PDF) + tumhare theek kiye hue history functions
-// (list, detail, delete) + contact/redaction ki safai.
-//
-// ASLI: controller, services, aur tumhare Mongoose models (schema ki shartein bhi chalti hain).
-// NAKLI: database (in-memory), pdfService, AI ka network (fetch).
-// PDF ka asli banna alag section mein test hota hai (agar `pdftotext` maujood ho).
 
 const mongoose = require('mongoose');
 const { execFileSync } = require('child_process');
@@ -18,12 +10,11 @@ const { resumes, jds } = require('./fixtures');
 const AppError = load('utils/AppError');
 const linesOf = (text) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 
-// ── Asli PDF builder pehle pakad lo, phir controller ke liye nakli (spy) rakh do ──
 const realPdf = load('services/coverLetterPdf');
 const pdfSpy = { calls: [] };
 const pdfServicePath = resolve('services/pdfService');
 const pdfBuilderPath = resolve('services/coverLetterPdf');
-try { require(pdfServicePath); } catch { /* pdf-parse na ho to bhi theek */ }
+try { require(pdfServicePath); } catch {  }
 require.cache[pdfServicePath] = { id: pdfServicePath, filename: pdfServicePath, loaded: true, exports: {
   extractText: async (buffer) => {
     const key = buffer.toString();
@@ -50,7 +41,6 @@ const check = (label, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail ? '  →  ' + detail : ''}`);
 };
 
-// ── In-memory database ───────────────────────────────────────────────────────
 const db = { resumes: [], analyses: [], letters: [] };
 const same = (a, b) => String(a) === String(b);
 let failNextUpsertWith11000 = false;
@@ -96,7 +86,6 @@ Coverletters.findOneAndUpdate = async (filter, update) => {
   return doc;
 };
 
-// ── AI nakli ─────────────────────────────────────────────────────────────────
 const P1 = 'I am drawn to the Full Stack Developer role because it combines the React and Node.js work I enjoy most. My degree in Computer Science and my internship gave me a solid base, and I want to apply it to real products used by real people.';
 const P2 = 'At Techify I implemented 12 REST endpoints and wrote unit tests with Jest, which taught me to keep APIs clean and testable. In my Expense Tracker project I built a MERN app used by 300+ users and reduced manual data entry by 40% with receipt parsing. My Chat App project used Socket.io and JWT authentication, deployed on AWS EC2.';
 const P3 = 'I am still growing in Docker and TypeScript, and I am eager to learn them quickly on the job. I would welcome the chance to talk about how my projects could help your team. Thank you for your time and consideration.';
@@ -115,7 +104,6 @@ const setAi = (mode) => {
   };
 };
 
-// ── req/res/next nakli ───────────────────────────────────────────────────────
 const call = async (handler, req) => {
   const out = { status: null, body: null, error: null, headers: {}, sent: null };
   const res = {
@@ -124,7 +112,6 @@ const call = async (handler, req) => {
     set(h) { Object.assign(out.headers, h); return this; },
     send(b) { out.sent = b; return this; },
   };
-  // Express 5 ki nakal: handler next(err) bulaye YA promise reject ho (throw), dono surat mein error `out.error` mein
   await new Promise((resolveDone) => {
     const next = (err) => { out.error = err; resolveDone(); };
     Promise.resolve()

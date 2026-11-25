@@ -1,19 +1,8 @@
-// tests/controller.test.js: `node tests/controller.test.js`
-//
-// Do route wala design test hota hai:
-//   createAnalysis      → resume + JD → score (AI ke bagair) → save
-//   requestSuggestions  → button dabane par AI
-//
-// Jo ASLI hai: controller, keywordService, scoringService, aiService, aur tumhare Mongoose models
-//              (is liye min/max, required, enum wali shartein bhi parkhi jati hain).
-// Jo NAKLI hai: PDF parsing (pdfService), database (in-memory), aur AI ka network (fetch).
-// MongoDB chalane ki zaroorat nahi. PDF library ki bhi nahi (asli PDF Postman mein tumhare asli resume se test hota hai).
 
 const mongoose = require('mongoose');
 const { load, resolve } = require('./paths');
 const { resumes, jds } = require('./fixtures');
 
-// ── pdfService nakli: controller require kare, usse PEHLE cache mein rakh do ──
 const pdfCalls = [];
 const FAKE_FILES = { web: resumes.web, senior: resumes.senior, ml: resumes.ml };
 const linesOf = (text) => text.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -29,7 +18,7 @@ const fakePdfService = {
   },
 };
 const pdfPath = resolve('services/pdfService');
-try { require(pdfPath); } catch { /* pdf-parse install na ho to bhi theek: hum nakli use karte hain */ }
+try { require(pdfPath); } catch {  }
 require.cache[pdfPath] = { id: pdfPath, filename: pdfPath, loaded: true, exports: fakePdfService };
 
 const { createAnalysis, requestSuggestions } = load(process.env.CONTROLLER_FILE || 'controllers/analysis.controller');
@@ -42,7 +31,6 @@ const check = (label, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail ? '  →  ' + detail : ''}`);
 };
 
-// ── In-memory database: asli schema se validate, lekin save MongoDB mein nahi ──
 const db = { resumes: [], analyses: [], deletedResumeIds: [] };
 const sameId = (a, b) => String(a) === String(b);
 
@@ -50,7 +38,6 @@ Resume.findOne = async (q) => db.resumes.find((r) => sameId(r.user, q.user) && r
 Resume.create = async (data) => {
   const doc = new Resume(data);
   await doc.validate();
-  // Unique index (user + fileHash) ki nakal: asli MongoDB aisa hi E11000 deta hai
   if (db.resumes.some((r) => sameId(r.user, doc.user) && r.fileHash === doc.fileHash)) {
     throw Object.assign(new Error('E11000 duplicate key'), { code: 11000 });
   }
@@ -67,7 +54,6 @@ Analysis.create = async (data) => {
   db.analyses.push(doc);
   return doc;
 };
-// findOne(...).populate('resume') ki nakal: resume ki jagah poora Resume document wapas
 Analysis.findOne = (q) => ({
   populate: async () => {
     const stored = db.analyses.find((a) => sameId(a._id, q._id) && sameId(a.user, q.user));
@@ -86,7 +72,6 @@ Analysis.findOne = (q) => ({
 Analysis.prototype.save = async function save() { await this.validate(); return this; };
 const reset = () => { db.resumes = []; db.analyses = []; db.deletedResumeIds = []; pdfCalls.length = 0; };
 
-// ── AI nakli (network) ───────────────────────────────────────────────────────
 const aiCalls = [];
 const goodAi = {
   summary: 'Good fit for a junior web role. Add Docker if you have used it.',
@@ -107,7 +92,6 @@ const setAi = (mode) => {
   };
 };
 
-// ── req / res / next nakli ───────────────────────────────────────────────────
 const call = async (handler, req) => {
   const out = { status: null, body: null, error: null };
   const res = { status(c) { out.status = c; return this; }, json(p) { out.body = p; return this; } };
@@ -175,7 +159,7 @@ const main = async () => {
   check('Analysis fail + NAYA Resume → Resume wapas hata diya', r.error?.message === 'db down' && db.resumes.length === 0 && db.deletedResumeIds.length === 1);
   Analysis.create = realAnalysisCreate;
 
-  await upload('web', userA); // ab Resume maujood hai
+  await upload('web', userA);
   const before = db.resumes.length;
   Analysis.create = async () => { throw new Error('db down'); };
   r = await upload('web', userA);

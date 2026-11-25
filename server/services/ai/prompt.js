@@ -1,8 +1,4 @@
-// src/services/ai/prompt.js
-// AI ko kya kehna hai: yahan likha hai. Prompt ek jagah rakha hai taake badalna aasan ho.
 
-// Resume ya JD ke andar koi <resume> jaisa tag likh de to hamari boundary toot sakti hai,
-// isliye un tags ko pehle hi hata dete hain
 const stripTags = (text) => text.replace(/<\/?(resume|job_description)[^>]*>/gi, '');
 
 const SYSTEM_PROMPT = `You are an expert resume reviewer for computer-science and software roles (web, mobile, AI/ML, cybersecurity, networking, cloud/DevOps, embedded, blockchain, game development, research).
@@ -53,7 +49,6 @@ Give 3 to 6 sectionSuggestions and 2 to 4 rewrittenBullets.`;
   return { system: SYSTEM_PROMPT, user };
 };
 
-// Agar pehli koshish mein jawab kharab aaya to doosri baar yeh line jod kar poochte hain
 const RETRY_NOTE = '\n\nYour previous reply was not valid JSON in the required shape. Reply again with ONLY the JSON object.';
 
 module.exports = { buildSuggestionPrompt, RETRY_NOTE };

@@ -1,6 +1,3 @@
-// tests/paths.js
-// Tumhare project mein folders `server/controllers`, `server/services` hain, mere sandbox mein `server/src/...`.
-// Yeh helper dono shaklon mein sahi jagah dhoond leta hai, taake tests mein paths haath se na badalne paren.
 const path = require('path');
 const fs = require('fs');
 

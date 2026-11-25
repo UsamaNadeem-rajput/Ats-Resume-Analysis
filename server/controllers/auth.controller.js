@@ -6,7 +6,6 @@ const User = require('../models/users');
 const AppError = require('../utils/AppError');
 const { sendTokenCookie, clearTokenCookie } = require('../utils/cookie');
 
-
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const signToken = (userId) => {
@@ -17,14 +16,12 @@ const signToken = (userId) => {
   );
 };
 
-
 const userResponse = (user) => ({
   id: user._id,
   name: user.name,
   email: user.email,
   avatar: user.avatar || null,
 });
-
 
 const register = async (req, res) => {
   const { name, email, password } = req.body;
@@ -61,7 +58,6 @@ const login = async (req, res) => {
     throw new AppError('Email aur password zaroori hain', 400, 'VALIDATION_ERROR');
   }
 
-
   const user = await User.findOne({ email }).select('+passwordHash');
 
   const isPasswordCorrect = user
@@ -81,7 +77,6 @@ const login = async (req, res) => {
   });
 };
 
-// ── GOOGLE AUTH ───────────────────────────────────────────────────────────────
 const googleAuth = async (req, res) => {
   const { idToken } = req.body;
 
@@ -89,31 +84,23 @@ const googleAuth = async (req, res) => {
     throw new AppError('Google token nahi mila', 400, 'VALIDATION_ERROR');
   }
 
-  // Google se verify karo — yeh Google ke servers ko call karta hai
-  // Agar token fake ya expire hua to yeh error phenkta hai
   const ticket = await googleClient.verifyIdToken({
     idToken,
     audience: process.env.GOOGLE_CLIENT_ID,
   });
 
-  // Token se user info nikalo
-  // sub = Google ka permanent unique ID (email change ho sakti hai, sub nahi)
   const { sub: googleId, email, name, picture } = ticket.getPayload();
 
-  // Pehle googleId se dhoondo
   let user = await User.findOne({ googleId });
 
   if (!user) {
-    // Email se dhoondo — shayad normal account pehle se ho
     user = await User.findOne({ email });
 
     if (user) {
-      // Purana normal account mila — Google ID link kar do
       user.googleId = googleId;
       if (!user.avatar) user.avatar = picture;
       await user.save();
     } else {
-      // Bilkul naya user — passwordHash nahi hoga
       user = await User.create({
         name,
         email,
@@ -123,7 +110,6 @@ const googleAuth = async (req, res) => {
     }
   }
 
-  // Tumhara apna JWT banao — aage normal flow
   const token = signToken(user._id);
   sendTokenCookie(res, token);
 
@@ -132,7 +118,6 @@ const googleAuth = async (req, res) => {
     user: userResponse(user),
   });
 };
-
 
 const me = async (req, res) => {
   res.json({

@@ -14,12 +14,10 @@ const app = express();
 
 connectDB();
 
-
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   credentials: true,
 }));
-
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -41,12 +39,10 @@ app.get('/api/session',protect,(req,res)=>{
 
 })
 
-// Routes 
 app.use('/api/health', health);
 app.use('/api/auth', authRoutes);
 app.use('/api/resume',analysis);
 
-// Error handling
 app.use(notFound);
 app.use(errorHandler);
 

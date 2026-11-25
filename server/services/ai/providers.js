@@ -1,23 +1,11 @@
-// src/services/ai/providers.js
-//
-// Har AI company ka API alag shakl ka hota hai. Yahan har ek ke liye ek chhota "adapter" hai
-// jo ek hi kaam karta hai: (system, user) lo → AI ka text jawab wapas do.
-// Baaki poora project sirf callProvider() jaanta hai, provider ke andar ki tafseel nahi.
-//
-// Koi SDK install nahi kiya: Node ka apna fetch kaafi hai (kam packages = kam masle).
 
-// Hamari apni error: kind se pata chalta hai aage kya karna hai
-//   'transient'      → server/network ka waqti masla (5xx, timeout): ek baar dobara koshish
-//   'rate_limit'     → 429, limit khatam: dobara koshish bekaar, agle provider par jao
-//   'config'         → 400/401/403/404: galat key ya model ka naam, agle provider par jao
-//   'invalid_output' → AI ne jawab diya lekin kaam ka nahi: ek baar dobara poocho
 class AiCallError extends Error {
   constructor(message, kind, retryAfterMs = null, hint = null) {
     super(message);
     this.name = 'AiCallError';
     this.kind = kind;
-    this.retryAfterMs = retryAfterMs; // server ne kitni der baad dobara aane ko kaha (agar kaha)
-    this.hint = hint;                 // validator ki taraf se AI ke liye "kya theek karo" (dobara poochte waqt joda jata hai)
+    this.retryAfterMs = retryAfterMs;
+    this.hint = hint;
   }
 }
 
@@ -27,9 +15,6 @@ const statusToKind = (status) => {
   return 'config';
 };
 
-// Dono providers ka common hissa: POST bhejo, timeout lagao, errors ko AiCallError banao.
-// DHYAN: error message mein sirf status code jata hai, kabhi response body ya request body nahi
-// (request mein resume hai, aur key bhi header mein hai, in dono ko log mein nahi aana chahiye)
 const postJson = async (url, headers, body, timeoutMs) => {
   let response;
   try {
@@ -37,7 +22,7 @@ const postJson = async (url, headers, body, timeoutMs) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs), // itni der mein jawab na aaye to cancel
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
@@ -45,7 +30,6 @@ const postJson = async (url, headers, body, timeoutMs) => {
   }
 
   if (!response.ok) {
-    // "Retry-After" header: server batata hai kitne second baad dobara koshish karo (429/503 par aksar)
     const seconds = Number(response.headers?.get?.('retry-after'));
     const retryAfterMs = Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
     const hint = retryAfterMs !== null ? ` (retry-after ${seconds}s)` : '';
@@ -59,21 +43,18 @@ const postJson = async (url, headers, body, timeoutMs) => {
   }
 };
 
-// ── Google Gemini ────────────────────────────────────────────────────────────
 const callGemini = async ({ apiKey, model, system, user, timeoutMs }) => {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
   const data = await postJson(
     url,
-    { 'x-goog-api-key': apiKey },   // key header mein (URL mein nahi, warna logs mein dikh sakti hai)
+    { 'x-goog-api-key': apiKey },
     {
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: 'user', parts: [{ text: user }] }],
       generationConfig: {
-        responseMimeType: 'application/json', // Gemini ko seedha JSON dene par majboor karta hai
-        temperature: 0.3,                     // kam = zyada stable jawab
-        // Naye Gemini models jawab se pehle "sochte" hain, aur yeh soch bhi isi hadd mein ginti hai.
-        // Hadd chhoti ho to jawab beech mein kat jata hai (adhoora JSON). Isliye barri hadd
+        responseMimeType: 'application/json',
+        temperature: 0.3,
         maxOutputTokens: 8192,
       },
     },
@@ -84,7 +65,6 @@ const callGemini = async ({ apiKey, model, system, user, timeoutMs }) => {
   const finishReason = candidate?.finishReason;
   const text = (candidate?.content?.parts || []).map((part) => part.text || '').join('');
 
-  // Jawab hadd par kat gaya: adhoora JSON hai, parse karna bekaar. Wajah saaf log mein aaye
   if (finishReason === 'MAX_TOKENS') throw new AiCallError('truncated (output token limit)', 'invalid_output');
   if (!text.trim()) {
     throw new AiCallError(`empty response${finishReason ? ` (${finishReason})` : ''}`, 'invalid_output');
@@ -92,9 +72,6 @@ const callGemini = async ({ apiKey, model, system, user, timeoutMs }) => {
   return text;
 };
 
-// ── Groq (OpenAI jaisa format) ───────────────────────────────────────────────
-// response_format jaan boojh kar nahi bheja: har Groq model JSON mode support nahi karta.
-// Hum prompt mein JSON maangte hain aur validate.js ka parser fences/faltu text sambhal leta hai
 const callGroq = async ({ apiKey, model, system, user, timeoutMs }) => {
   const data = await postJson(
     'https://api.groq.com/openai/v1/chat/completions',
@@ -120,7 +97,6 @@ const callGroq = async ({ apiKey, model, system, user, timeoutMs }) => {
 
 const adapters = { gemini: callGemini, groq: callGroq };
 
-// provider = { name, apiKey, model } (config/ai.js se)
 const callProvider = (provider, { system, user, timeoutMs }) =>
   adapters[provider.name]({ apiKey: provider.apiKey, model: provider.model, system, user, timeoutMs });
 

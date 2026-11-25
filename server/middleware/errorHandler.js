@@ -16,7 +16,6 @@ const errorHandler = (err, req, res, next) => {
     message = err.message;
   }
  
-  // ── Mongoose: schema rule toota (required field khali, maxlength, etc.) ──
   else if (err.name === 'ValidationError') {
     statusCode = 400;
     code = 'VALIDATION_ERROR';
@@ -25,36 +24,31 @@ const errorHandler = (err, req, res, next) => {
       .join(', ');
   }
  
-  // ── Mongoose: ghalat ObjectId (maslan /analyses/abc) ──
   else if (err.name === 'CastError') {
     statusCode = 400;
     code = 'VALIDATION_ERROR';
     message = `Ghalat ID format: ${err.path}`;
   }
  
-  // ── MongoDB: unique field dobara aayi (maslan same email) ──
   else if (err.code === 11000) {
     statusCode = 409;
     code = 'DUPLICATE_KEY';
-    const field = Object.keys(err.keyValue)[0]; // kaunsi field duplicate hai
+    const field = Object.keys(err.keyValue)[0];
     message = `${field} pehle se maujood hai`;
   }
  
-  // ── JWT: token ghalat hai ──
   else if (err.name === 'JsonWebTokenError') {
     statusCode = 401;
     code = 'UNAUTHORIZED';
     message = 'Token ghalat hai, dobara login karein';
   }
  
-  // ── JWT: token ki meyaad khatam ──
   else if (err.name === 'TokenExpiredError') {
     statusCode = 401;
     code = 'UNAUTHORIZED';
     message = 'Token expire ho gaya, dobara login karein';
   }
  
-  // ── Multer: file size limit ──
   else if (err.code === 'LIMIT_FILE_SIZE') {
     statusCode = 413;
     code = 'FILE_TOO_LARGE';
@@ -68,7 +62,6 @@ const errorHandler = (err, req, res, next) => {
     console.error('────────────────────');
   }
  
-  // Hamesha ek hi format mein jawab
   res.status(statusCode).json({
     success: false,
     code,

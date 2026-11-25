@@ -1,23 +1,11 @@
-// src/utils/contact.js
-// "Phone / email / link kahan hai?" ka EK hi jawab. Teen jagah isay istemal karti hain:
-//   scoringService  → formatting marks (kya resume mein phone hai?)
-//   redact.js       → AI ko bhejne se pehle hatana
-//   coverLetterPdf  → PDF ke header mein sender ki maloomat likhna
-// Pehle phone ka logic do jagah alag alag tha (aur ek jagah kamzor): isi se redaction mein
-// "phone ke baad saal" likha hota to phone ka number AI tak chala jata. Ab ek hi code.
 
 const { findLinks } = require('./links');
 
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 const isYear = (digits) => /^(19|20)\d{2}$/.test(digits);
 
-// Phone jaisa lagne wala tukra dhoondta hai: digits, spaces, ( ) . - aur shuru mein + ya (
 const CANDIDATE = /[+(]?\d[\d\s().-]{6,}/g;
 
-// Ek candidate ke andar se asli phone ka hissa nikalta hai (digits ki ginti 10 se 13).
-// Misaal: "+92 303 2180360 2022- 2026" → "+92 303 2180360"  (saal chhor diye)
-//         "(555) 123-4567"            → poora
-//         "2019 2020 2021 2022"       → null (sab saal hain, phone nahi)
 const phoneInCandidate = (candidate) => {
   let digits = 0;
   const groups = [];
@@ -33,7 +21,6 @@ const phoneInCandidate = (candidate) => {
   return null;
 };
 
-// Poore text mein saare phone numbers ki jagah: [{ start, end, text }]
 const findPhoneSpans = (text) => {
   const spans = [];
   for (const candidate of text.matchAll(CANDIDATE)) {
@@ -47,8 +34,6 @@ const findPhoneSpans = (text) => {
 
 const findEmails = (text) => text.match(EMAIL) || [];
 
-// Resume se sender ki maloomat nikaalo (cover letter PDF ke header ke liye)
-// Links mein LinkedIn pehle, phir GitHub, phir baaqi (maximum 2)
 const extractContact = (text) => {
   const email = findEmails(text)[0];
   const phone = findPhoneSpans(text)[0]?.text;

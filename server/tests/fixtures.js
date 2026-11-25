@@ -1,7 +1,3 @@
-// tests/fixtures.js
-// Alag alag CS fields ke FAKE resumes aur JDs. Maqsad: koi bhi rule kisi ek resume/JD par
-// overfit na ho. Har change ke baad poora set chalta hai (tests/run.js).
-// Resume mein "\n" jaan boojh kar hai: pdfService ki lines yahi hoti hain.
 
 const resumes = {
   web: {
@@ -129,8 +125,6 @@ const jds = {
   data: `Data Analyst to turn data into decisions. Requirements: strong SQL, Power BI or Tableau, Excel, Python with pandas, data visualization and statistics. You will build dashboards, analyze large datasets, present insights to managers and automate recurring reports.`,
 };
 
-// Pairs: expected range PEHLE se likhi hain (outputs dekh kar nahi badli).
-// match pair: 50 se 95. mismatch pair: 35 se kam
 const pairs = [
   { name: 'web ↔ web JD',            resume: 'web',      jd: 'web',      min: 50, max: 95 },
   { name: 'ml ↔ ml JD',              resume: 'ml',       jd: 'ml',       min: 50, max: 95 },
@@ -145,8 +139,6 @@ const pairs = [
   { name: 'MISMATCH data ↔ senior',  resume: 'data',     jd: 'senior',   min: 0,  max: 35 },
 ];
 
-// Har resume mein yeh skills HONI chahiye (jo resume mein sach mein likhi hain)
-// aur yeh NAHI honi chahiye (jo likhi hi nahi, yaani false positive)
 const skillExpectations = {
   web:      { has: ['javascript', 'react', 'nodejs', 'express', 'mongodb', 'git', 'aws'], hasNot: ['typescript', 'docker', 'python', 'golang', 'data_structures', 'operating_systems'] },
   ml:       { has: ['python', 'pytorch', 'tensorflow', 'machine_learning', 'nlp', 'computer_vision', 'docker'], hasNot: ['javascript', 'typescript', 'react', 'aws', 'kubernetes'] },

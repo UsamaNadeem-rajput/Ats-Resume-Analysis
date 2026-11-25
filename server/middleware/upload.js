@@ -1,7 +1,6 @@
 const multer = require("multer");
 const AppError = require("../utils/AppError");
 
-
 const storage= multer.memoryStorage();
 const limit = {fileSize: 1024*1024*5};
 const filefilter = (req,file,cb)=>{
@@ -17,6 +16,5 @@ const upload= multer({
     limits:limit,
     fileFilter:filefilter
 })
-
 
 module.exports=upload;

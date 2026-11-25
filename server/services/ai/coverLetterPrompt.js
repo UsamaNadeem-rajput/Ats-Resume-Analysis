@@ -1,12 +1,6 @@
-// src/services/ai/coverLetterPrompt.js
-// Cover letter ke liye AI ko hidayat. Suggestions wale prompt.js ka bhai.
-// Farq: yahan AI ko sirf "beech ke paragraphs" likhne hain. Greeting ("Dear ..."), closing ("Sincerely")
-// aur naam server khud lagata hai (coverLetterValidate.js ka composeLetter), taake AI naam/company
-// ke bare mein koi galti ya jhoot na likh sake.
 
 const stripTags = (text) => text.replace(/<\/?(resume|job_description)[^>]*>/gi, '');
 
-// Tone ka matlab AI ko saaf alfaaz mein
 const TONE_GUIDE = {
   professional: 'Formal, polite and polished. Neutral wording, no slang, no exclamation marks.',
   friendly: 'Warm and approachable but still professional. Natural, conversational sentences. At most one exclamation mark.',

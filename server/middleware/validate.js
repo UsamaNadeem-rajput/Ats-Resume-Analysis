@@ -35,11 +35,10 @@ const analysisRules = () => [
     .isLength({ max: 8000 }).withMessage('Job description zyada se zyada 8000 characters ki honi chahiye'),
 
   body('jobTitle')
-    .optional()  // zaroori nahi
+    .optional()
     .trim()
     .isLength({ max: 120 }).withMessage('Job title zyada se zyada 120 characters ka ho'),
 ];
-
 
 const checkValidation = (req, res, next) => {
   const errors = validationResult(req);

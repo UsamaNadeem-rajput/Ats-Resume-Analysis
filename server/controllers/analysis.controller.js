@@ -1,38 +1,26 @@
-//controllers/analysis.controller.js
-//
-// Tumhara design (do route): 1) upload → score foran, AI ke bagair. 2) button dabane par AI suggestions.
-// Isay maine bilkul waise hi rakha hai. Sirf woh jagahein badli hain jahan bug tha: har badlao par
-// "BADLAO n" likha hai taake tum dhoondh sako.
 
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { extractText }         = require('../services/pdfService');
-const { analyzeKeywords }     = require('../services/keywordService');
-const { calculateScore }      = require('../services/scoringService');
+const { extractText } = require('../services/pdfService');
+const { analyzeKeywords } = require('../services/keywordService');
+const { calculateScore } = require('../services/scoringService');
 const { generateSuggestions } = require('../services/aiService');
 const { generateCoverLetter } = require('../services/coverLetterService');
 const { buildCoverLetterPdf, coverLetterFilename } = require('../services/coverLetterPdf');
 const { cleanLabel, normalizeTone, formatPersonName } = require('../services/ai/coverLetterValidate');
 const { extractContact } = require('../utils/contact');
-const Resume   = require('../models/resumes');
+const Resume = require('../models/resumes');
 const Analysis = require('../models/analysis');
 const Coverletters = require('../models/coverletters');
 const AppError = require('../utils/AppError');
 
 const getUserId = (req) => req.user?._id || req.user?.id;
 
-// BADLAO 1: Resume mein text newline (\n) se jora hua save hota hai (har line alag).
-// Wapas padhte waqt yeh dono shaklen banti hain:
-//   lines = alag alag lines (headings aur naam pehchanne ke liye)
-//   text  = sab ek line mein (keywords/skills/score ke liye)
-// Pehle yahan text.split('\n') tha, lekin saved text mein newline thi hi nahi, to poora resume
-// "ek line" ban jata: sections kharab pakde jate aur AI ko bhejte waqt NAAM redact NAHI hota tha.
 const partsFromSaved = (extractedText = '') => {
   const lines = extractedText.split('\n').map((line) => line.trim()).filter(Boolean);
   return { lines, text: lines.join(' ') };
 };
 
-// ── 1. Create Analysis (Deterministic Score Only — Zero AI Tokens) ───────────
 const createAnalysis = async (req, res, next) => {
   let isNewResumeCreated = false;
   let resumeDoc = null;
@@ -52,53 +40,43 @@ const createAnalysis = async (req, res, next) => {
     const { jobDescription } = req.body;
     const jobTitle = typeof req.body.jobTitle === 'string' ? req.body.jobTitle.trim() || undefined : undefined;
 
-    // ── File Buffer ka SHA-256 Hash nikalein ──────────────────────────────────
     const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
 
-    // ── Check karein: Kya yeh resume pehle se database mein hai? ──────────────
     resumeDoc = await Resume.findOne({ user: userId, fileHash });
 
     let text, lines, pageCount, keywordData;
 
     if (resumeDoc) {
-      // Resume pehle se maujood hai — PDF parsing skip, saved text reuse karein
       ({ lines, text } = partsFromSaved(resumeDoc.extractedText));
-      pageCount = resumeDoc.pageCount || 1; // BADLAO 2: pehle yahan hamesha 1 tha (2 page resume ka score badal jata)
+      pageCount = resumeDoc.pageCount || 1;
       keywordData = analyzeKeywords(text, jobDescription, lines);
     } else {
-      // Naya resume hai — PDF parse karein
       const extracted = await extractText(req.file.buffer);
       text = extracted.text;
       lines = extracted.lines;
       pageCount = extracted.pageCount;
       keywordData = analyzeKeywords(text, jobDescription, lines);
 
-      // Naya resume create karein
       try {
         resumeDoc = await Resume.create({
           user: userId,
           orignalName: req.file.originalname,
           fileHash,
           sizeBytes: req.file.size,
-          pageCount,                         // BADLAO 2: page count save
-          extractedText: lines.join('\n'),   // BADLAO 1: newline ke saath save
+          pageCount,
+          extractedText: lines.join('\n'),
           detectedSections: keywordData.detectedSections,
         });
         isNewResumeCreated = true;
       } catch (createErr) {
-        // BADLAO 3: do requests ek saath aayen to dono ko "resume nahi hai" dikhta hai aur dono bana-
-        // ne chalte hain. Database ka unique index doosri ko E11000 error deta hai. Us surat mein
-        // jo resume pehli request ne abhi banaya, wahi use karo (error mat do)
         if (createErr.code !== 11000) throw createErr;
         resumeDoc = await Resume.findOne({ user: userId, fileHash });
         if (!resumeDoc) throw createErr;
       }
     }
 
-    // ── Mathematical Deterministic Score (Rules based, no AI) ─────────────────
     const { score, breakdown, notApplicable } = calculateScore(keywordData, text, { pageCount });
 
-    // ── Analysis Save (aiStatus: 'not_requested') ──────────────────────────────
     const analysis = await Analysis.create({
       user: userId,
       resume: resumeDoc._id,
@@ -106,6 +84,7 @@ const createAnalysis = async (req, res, next) => {
       jobDescription,
       score,
       breakdown,
+      notApplicable,
       matchedkeywords: keywordData.matchedKeywords,
       missingkeywords: keywordData.missingKeywords,
       matchedSkills: keywordData.matchedSkills,
@@ -113,7 +92,6 @@ const createAnalysis = async (req, res, next) => {
       aiStatus: 'not_requested',
     });
 
-    // ── Fast Response (Instant result) ────────────────────────────────────────
     return res.status(201).json({
       success: true,
       analysis: {
@@ -145,15 +123,13 @@ const createAnalysis = async (req, res, next) => {
       },
     });
   } catch (err) {
-    // Sirf tab delete karein agar ISI request mein naya resume bana tha
     if (isNewResumeCreated && resumeDoc) {
-      await Resume.deleteOne({ _id: resumeDoc._id }).catch(() => {});
+      await Resume.deleteOne({ _id: resumeDoc._id }).catch(() => { });
     }
     return next(err);
   }
 };
 
-// ── 2. Request AI Suggestions (On-Demand / Button Click) ───────────────────────
 const requestSuggestions = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -161,19 +137,15 @@ const requestSuggestions = async (req, res, next) => {
 
     const { id } = req.params;
 
-    // BADLAO 4: id galat shakl ki ho ("abc") to Mongoose CastError deta tha (500 error).
-    // Ab saaf 400
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError('Analysis id galat hai', 400, 'VALIDATION_ERROR');
     }
 
     const analysis = await Analysis.findOne({ _id: id, user: userId }).populate('resume');
-    // BADLAO 5: resume hat chuka ho to analysis.resume null hota hai aur neeche .extractedText par crash
     if (!analysis || !analysis.resume) {
       throw new AppError('Analysis record nahi mila', 404, 'NOT_FOUND');
     }
 
-    // Cache Check: Agar suggestions pehle hi calculate ho chuke hain
     if (analysis.aiStatus === 'ok' && analysis.suggestions?.summary) {
       return res.status(200).json({
         success: true,
@@ -183,10 +155,8 @@ const requestSuggestions = async (req, res, next) => {
       });
     }
 
-    // BADLAO 1: lines wapas banao (naam redaction aur AI ko saaf dhancha dene ke liye)
     const { lines } = partsFromSaved(analysis.resume.extractedText);
 
-    // AI Service call
     const ai = await generateSuggestions({
       resumeText: lines.join('\n'),
       lines,
@@ -203,7 +173,7 @@ const requestSuggestions = async (req, res, next) => {
     });
 
     analysis.suggestions = ai.suggestions || undefined;
-    analysis.aiStatus = ai.aiStatus; // 'ok' ya 'failed'
+    analysis.aiStatus = ai.aiStatus;
     await analysis.save();
 
     return res.status(200).json({
@@ -211,7 +181,6 @@ const requestSuggestions = async (req, res, next) => {
       cached: false,
       suggestions: analysis.suggestions,
       aiStatus: analysis.aiStatus,
-      // Frontend ke liye: AI na chale to user ko kya dikhana hai
       ...(analysis.aiStatus === 'failed' && { message: 'AI abhi jawab nahi de saka, thori der baad dobara try karein' }),
     });
   } catch (err) {
@@ -219,15 +188,6 @@ const requestSuggestions = async (req, res, next) => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// History: list, detail, delete  (tumhare functions, bugs theek kiye)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Express 5: async handler mein throw/reject hone wale errors khud next(err) tak pahunchte hain,
-// isliye yahan koi catchAsync wrapper nahi chahiye (Express 4 mein chahiye hota tha).
-
-// Id ObjectId jaisi shakl ki na ho to Mongoose CastError (500) deta hai. Yeh Express ka nahi, Mongoose ka masla hai,
-// isliye Express 5 mein bhi zaroori hai: saaf 400
 const assertValidId = (id, label = 'Analysis') => {
   if (!mongoose.isValidObjectId(id)) throw new AppError(`${label} id galat hai`, 400, 'VALIDATION_ERROR');
 };
@@ -235,8 +195,6 @@ const assertValidId = (id, label = 'Analysis') => {
 const historylist = async (req, res) => {
   const userId = getUserId(req);
 
-  // BADLAO 7: page/limit query se "text" aate hain ("5"), aur limit ki koi hadd nahi thi:
-  // ?limit=100000 se poori collection ek saath load ho jati. Ab number banate hain aur limit 1 se 50
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const limitofpage = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
 
@@ -264,10 +222,8 @@ const historylist = async (req, res) => {
 const singleDocdetail = async (req, res) => {
   const userId = getUserId(req);
   const id = req.params.id;
-  assertValidId(id); // BADLAO 8: galat id par pehle 500 (CastError) aata tha
+  assertValidId(id);
 
-  // BADLAO 9: resume ki details (file ka naam, size, pages, sections) populate hoti hain, lekin
-  // extractedText nahi (woh bhari hai aur yahan zaroori nahi)
   const result = await Analysis.findOne({ _id: id, user: userId })
     .populate('resume', 'orignalName sizeBytes pageCount detectedSections createdAt')
     .lean();
@@ -276,10 +232,8 @@ const singleDocdetail = async (req, res) => {
     throw new AppError('Analysis record nahi mila', 404, 'NOT_FOUND');
   }
 
-  // Frontend ko batane ke liye: is analysis ka cover letter ban chuka hai ya nahi (button dikhana hai ya "view")
   const hasCoverLetter = !!(await Coverletters.exists({ analysis: id, user: userId }));
 
-  // BADLAO 10: pehle { success: result } tha, yani "success" mein poora document. Ab success: true
   res.status(200).json({ success: true, analysis: result, hasCoverLetter });
 };
 
@@ -293,15 +247,10 @@ const deletehistory = async (req, res) => {
     throw new AppError('Analysis record nahi mila', 404, 'NOT_FOUND');
   }
 
-  // BADLAO 11: is analysis ka cover letter bhi hata do, warna yateem (orphan) letter database mein reh jata
   await Coverletters.deleteOne({ analysis: analysisId, user: userId });
 
   res.status(200).json({ success: true, message: 'Deleted', data: { id: analysisId } });
 };
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Cover Letter: banao, dekho, PDF
-// ═══════════════════════════════════════════════════════════════════════════════
 
 const coverLetterJson = (doc) => ({
   id: doc._id,
@@ -315,8 +264,6 @@ const coverLetterJson = (doc) => ({
   updatedAt: doc.updatedAt,
 });
 
-// Ek analysis ka ek hi letter (analysis par unique index). Pehle se ho to badal do, na ho to bana do.
-// Do requests ek saath aayen to doosri E11000 deti hai: us surat mein update karke wahi letter wapas
 const saveCoverLetter = async (userId, analysisId, set, unset = {}) => {
   const filter = { analysis: analysisId, user: userId };
   const options = { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true };
@@ -329,8 +276,6 @@ const saveCoverLetter = async (userId, analysisId, set, unset = {}) => {
   }
 };
 
-// ── POST /analysis/:id/cover-letter ─────────────────────────────────────────
-// Body (sab optional): companyName, hiringManager, tone, location, regenerate
 const createCoverLetter = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -347,7 +292,6 @@ const createCoverLetter = async (req, res, next) => {
     const body = req.body || {};
     const regenerate = body.regenerate === true || body.regenerate === 'true';
 
-    // Letter pehle se bana hua hai? To wohi dikha do (AI ke tokens nahi lagte), jab tak user regenerate na maange
     const existing = await Coverletters.findOne({ analysis: analysis._id, user: userId });
     if (existing && !regenerate) {
       return res.status(200).json({ success: true, cached: true, coverLetter: coverLetterJson(existing) });
@@ -366,13 +310,11 @@ const createCoverLetter = async (req, res, next) => {
       jobTitle: analysis.jobTitle,
       companyName,
       hiringManager,
-      candidateName: req.user?.name, // sign-off ke liye; AI ko nahi bheja jata
+      candidateName: req.user?.name,
       tone,
       keywordData: { matchedSkills: analysis.matchedSkills, missingSkills: analysis.missingSkills },
     });
 
-    // Suggestions ki tarah "failed" status save karne ki jagah nahi: letter ke bina saving ka matlab nahi.
-    // 503 deta hain taake frontend "dobara try karein" button dikha sake
     if (ai.aiStatus !== 'ok') {
       throw new AppError('AI abhi cover letter nahi bana saka, thori der baad dobara try karein', 503, 'AI_UNAVAILABLE');
     }
@@ -391,14 +333,9 @@ const createCoverLetter = async (req, res, next) => {
   }
 };
 
-// ── PUT /analysis/:id/cover-letter ──────────────────────────────────────────
-// User ka khud ka edit kiya hua letter save karta hai (AI ke bagair). Body (sab optional, lekin kuch to ho):
-//   content, companyName, hiringManager, location, tone
-// "" bhejne par company/manager/location hat jata hai. Letter pehle se na ho to content dena zaroori hai (user khud likh sakta hai)
 const MIN_LETTER_CHARS = 50;
 const MAX_LETTER_CHARS = 6000;
 
-// User ka apna text hai, isliye AI wale guards nahi: sirf line endings aur kharab (control/zero-width) characters saaf
 const cleanUserLetter = (value) =>
   String(value)
     .replace(/\r\n?/g, '\n')
@@ -415,7 +352,6 @@ const updateCoverLetter = async (req, res, next) => {
     const { id } = req.params;
     assertValidId(id);
 
-    // Analysis is user ka hona chahiye (warna kisi aur ke analysis par letter ban jata)
     const analysis = await Analysis.findOne({ _id: id, user: userId });
     if (!analysis) throw new AppError('Analysis record nahi mila', 404, 'NOT_FOUND');
 
@@ -436,7 +372,7 @@ const updateCoverLetter = async (req, res, next) => {
       if (body[field] === undefined) return;
       const value = cleanLabel(body[field], max);
       if (value) set[field] = value;
-      else unset[field] = 1; // khali bheja to hata do
+      else unset[field] = 1;
     });
 
     if (body.tone !== undefined) set.tone = normalizeTone(body.tone);
@@ -456,7 +392,6 @@ const updateCoverLetter = async (req, res, next) => {
   }
 };
 
-// ── GET /analysis/:id/cover-letter ──────────────────────────────────────────
 const getCoverLetter = async (req, res) => {
   const userId = getUserId(req);
   assertValidId(req.params.id);
@@ -467,7 +402,6 @@ const getCoverLetter = async (req, res) => {
   res.status(200).json({ success: true, coverLetter: coverLetterJson(letter) });
 };
 
-// ── GET /analysis/:id/cover-letter/pdf   (?inline=1 → browser mein dikhao/print karo) ─────────
 const downloadCoverLetterPdf = async (req, res) => {
   const userId = getUserId(req);
   const { id } = req.params;
@@ -476,11 +410,10 @@ const downloadCoverLetterPdf = async (req, res) => {
   const letter = await Coverletters.findOne({ analysis: id, user: userId });
   if (!letter) throw new AppError('Is analysis ka cover letter abhi nahi bana', 404, 'COVER_LETTER_NOT_FOUND');
 
-  // Sender ki maloomat: naam user ke account se, email/phone/links resume se (AI ko nahi gaye, sirf PDF mein jayenge)
   const analysis = await Analysis.findOne({ _id: id, user: userId }).populate('resume', 'extractedText');
   const contact = extractContact(analysis?.resume?.extractedText || '');
 
-  const name = formatPersonName(req.user?.name); // header mein bhi "Usama Nadeem"
+  const name = formatPersonName(req.user?.name);
   const pdf = await buildCoverLetterPdf({
     name,
     contact: { ...contact, email: contact.email || req.user?.email },
@@ -497,7 +430,7 @@ const downloadCoverLetterPdf = async (req, res) => {
     'Content-Type': 'application/pdf',
     'Content-Disposition': `${disposition}; filename="${coverLetterFilename({ name, jobTitle: analysis?.jobTitle })}"`,
     'Content-Length': pdf.length,
-    'Cache-Control': 'private, no-store', // letter zaati hai: kisi shared cache mein na rahe
+    'Cache-Control': 'private, no-store',
   });
   res.status(200).send(pdf);
 };

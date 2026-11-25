@@ -1,7 +1,3 @@
-// scripts/testAi.js: `node scripts/testAi.js`
-// ASLI AI ko ek baar bulane ka chhota test. Yeh tumhari .env ki key use karta hai.
-// Data: tests/fixtures.js ka NAKLI resume aur JD (tumhara asli resume kahin nahi jata).
-// Sirf summary aur ginti print hoti hai: key ya poora jawab nahi.
 
 require('dotenv').config();
 

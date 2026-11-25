@@ -1,6 +1,3 @@
-// scripts/listModels.js: `node scripts/listModels.js`
-// Tumhari Gemini key par kaun kaun se models chal sakte hain, unke naam dikhata hai.
-// Sirf naam print hote hain (key nahi). Jo naam mile woh .env ke GEMINI_MODEL mein likh do
 
 require('dotenv').config();
 

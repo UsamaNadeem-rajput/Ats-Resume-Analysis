@@ -1,5 +1,3 @@
-// tests/coverLetter.test.js: `node tests/coverLetter.test.js`
-// Asli AI nahi chalti: fetch nakli hai. Dekhte hain ke cover letter ka har rasta kaam karta hai.
 
 const { load } = require('./paths');
 const { resumes, jds } = require('./fixtures');
@@ -13,19 +11,16 @@ const check = (label, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail ? '  →  ' + detail : ''}`);
 };
 
-// ── Tayyari ──────────────────────────────────────────────────────────────────
 const lines = resumes.web.text.split('\n').map((l) => l.trim()).filter(Boolean);
 const resumeText = lines.join(' ');
 const keywordData = analyzeKeywords(resumeText, jds.web, lines);
 const base = { resumeText, lines, jdText: jds.web, jobTitle: 'Full Stack Developer', keywordData };
 
-// Resume ke tathyon par bana ek achha letter (koi nayi skill/number nahi)
 const P1 = 'I am drawn to the Full Stack Developer role because it combines the React and Node.js work I enjoy most. My degree in Computer Science and my internship gave me a solid base, and I want to apply it to real products used by real people.';
 const P2 = 'At Techify I implemented 12 REST endpoints and wrote unit tests with Jest, which taught me to keep APIs clean and testable. In my Expense Tracker project I built a MERN app used by 300+ users and reduced manual data entry by 40% with receipt parsing. My Chat App project used Socket.io and JWT authentication, deployed on AWS EC2.';
 const P3 = 'I am still growing in Docker and TypeScript, and I am eager to learn them quickly on the job. I would welcome the chance to talk about how my projects could help your team. Thank you for your time and consideration.';
 const goodLetter = JSON.stringify({ paragraphs: [P1, P2, P3] });
 
-// ── Nakli fetch ──────────────────────────────────────────────────────────────
 const calls = [];
 const setFetch = (...responses) => {
   calls.length = 0;

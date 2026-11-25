@@ -1,8 +1,3 @@
-// tests/cascade.test.js: `node tests/cascade.test.js`
-//
-// Delete ke cascade: ek resume hatao to uske analyses aur cover letters bhi jayen (yateem na bachen),
-// aur kisi aur ka ya apne doosre resume ka data na chhuye.
-// Models ASLI hain; database in-memory nakli (MongoDB ki zaroorat nahi).
 
 const mongoose = require('mongoose');
 const { load } = require('./paths');
@@ -22,10 +17,9 @@ const check = (label, ok, detail = '') => {
 const same = (a, b) => String(a) === String(b);
 const oid = () => new mongoose.Types.ObjectId();
 let db;
-const order = []; // kis tarteeb se delete hua
+const order = [];
 let failAnalysisDelete = false;
 
-// ── In-memory stubs ─────────────────────────────────────────────────────────
 const matches = (doc, q) => Object.entries(q).every(([k, v]) => {
   if (v && typeof v === 'object' && '$in' in v) return v.$in.some((x) => same(doc[k], x));
   return same(doc[k], v);
@@ -49,8 +43,8 @@ const seed = () => {
   db = {
     resumes: [{ _id: r1, user: userA }, { _id: r2, user: userA }, { _id: rB, user: userB }],
     analyses: [
-      { _id: a1, user: userA, resume: r1 }, { _id: a2, user: userA, resume: r1 }, // r1 ke 2 analyses
-      { _id: a3, user: userA, resume: r2 },                                       // r2 ka 1
+      { _id: a1, user: userA, resume: r1 }, { _id: a2, user: userA, resume: r1 },
+      { _id: a3, user: userA, resume: r2 },
       { _id: aB, user: userB, resume: rB },
     ],
     letters: [
@@ -65,7 +59,6 @@ const seed = () => {
 const call = async (handler, req) => {
   const out = { status: null, body: null, error: null };
   const res = { status(c) { out.status = c; return this; }, json(p) { out.body = p; return this; } };
-  // Express 5 ki nakal: promise reject ho to error `out.error` mein (framework next(err) bulata hai)
   await new Promise((done) => {
     Promise.resolve()
       .then(() => handler({ params: {}, ...req }, res, (err) => { out.error = err; done(); }))
@@ -92,7 +85,7 @@ const main = async () => {
   check('maujood nahi → null', removed === null);
 
   ids = seed();
-  db.analyses = db.analyses.filter((d) => !same(d.resume, ids.r2)); // r2 ke koi analysis nahi
+  db.analyses = db.analyses.filter((d) => !same(d.resume, ids.r2));
   removed = await deleteResumeCascade(userA, ids.r2);
   check('resume jiska koi analysis nahi: sirf resume hata, letters ki query nahi chali', removed.resume === 1 && removed.analyses === 0 && removed.coverLetters === 0 && !order.includes('letters'), order.join(','));
 
